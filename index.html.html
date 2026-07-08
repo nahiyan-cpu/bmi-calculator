@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Vitals · BMI Readout</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg1:#070B14; --bg2:#0F1B2E; --card:rgba(255,255,255,0.05);
+    --field:rgba(255,255,255,0.04); --field-border:rgba(255,255,255,0.1);
+    --card-border:rgba(255,255,255,0.12);
+    --cyan:#35E0C8; --violet:#7C6CF0;
+    --ink:#F1F5F9; --ink-dim:#94A3B8; --ink-faint:#64748B;
+    --pill-bg:rgba(255,255,255,0.05); --pill-border:rgba(255,255,255,0.15);
+    --divider:rgba(255,255,255,0.08);
+  }
+  html.light{
+    --bg1:#EAF1EE; --bg2:#F7FAF9; --card:rgba(255,255,255,0.55);
+    --field:rgba(255,255,255,0.7); --field-border:rgba(15,27,46,0.1);
+    --card-border:rgba(15,27,46,0.08);
+    --ink:#0B1120; --ink-dim:#475569; --ink-faint:#64748B;
+    --pill-bg:rgba(15,27,46,0.04); --pill-border:rgba(15,27,46,0.1);
+    --divider:rgba(15,27,46,0.08);
+  }
+
+  *{ box-sizing:border-box; }
+  body{
+    margin:0;
+    font-family:'Inter', sans-serif;
+    color:var(--ink);
+    background: radial-gradient(circle at 15% 15%, var(--bg2), transparent 55%),
+                radial-gradient(circle at 85% 85%, var(--bg2), transparent 55%),
+                var(--bg1);
+    min-height:100vh;
+    transition: background 0.5s ease, color 0.5s ease;
+    overflow-x:hidden;
+  }
+  .font-display{ font-family:'Space Grotesk', sans-serif; }
+  .font-mono{ font-family:'JetBrains Mono', monospace; }
+
+  .blob{ position:fixed; border-radius:9999px; filter:blur(90px); opacity:0.35; z-index:0; pointer-events:none; }
+  .blob1{ width:420px;height:420px; background:var(--cyan); top:-120px; left:-120px; animation:float1 14s ease-in-out infinite; }
+  .blob2{ width:380px;height:380px; background:var(--violet); bottom:-140px; right:-100px; animation:float2 16s ease-in-out infinite; }
+  @keyframes float1{ 0%,100%{ transform:translate(0,0);} 50%{ transform:translate(40px,50px);} }
+  @keyframes float2{ 0%,100%{ transform:translate(0,0);} 50%{ transform:translate(-30px,-40px);} }
+
+  .page{ position:relative; z-index:10; min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:32px 20px; }
+
+  .topbar{ width:100%; max-width:384px; display:flex; align-items:center; justify-content:space-between; margin-bottom:32px; }
+  .eyebrow{ font-size:11px; letter-spacing:0.25em; color:var(--ink-dim); margin:0 0 2px; }
+  .brand{ font-size:20px; font-weight:600; margin:0; color:var(--ink); }
+
+  .theme-toggle{ position:relative; width:64px; height:36px; border-radius:9999px; display:flex; align-items:center; padding:4px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.15); cursor:pointer; transition:background-color 0.4s ease; }
+  html.light .theme-toggle{ background:rgba(255,255,255,0.6); }
+  .theme-thumb{ position:absolute; left:4px; width:28px; height:28px; border-radius:9999px; background:linear-gradient(135deg,#67e8f9,#a78bfa); display:flex; align-items:center; justify-content:center; font-size:13px; transition:transform 0.4s cubic-bezier(.34,1.56,.64,1); }
+
+  .card{ background:var(--card); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); border:1px solid var(--card-border); width:100%; max-width:384px; border-radius:28px; padding:24px; box-shadow:0 25px 70px -20px rgba(0,0,0,0.5); }
+  html.light .card{ box-shadow:0 20px 60px -20px rgba(15,27,46,0.15); }
+
+  .gauge-wrap{ display:flex; flex-direction:column; align-items:center; margin-bottom:8px; }
+  .gauge-svg{ width:256px; height:auto; overflow:visible; color:var(--ink-dim); }
+  #needle{ transform-origin:100px 100px; transition:transform 1.1s cubic-bezier(.34,1.56,.64,1); }
+  #indicator-dot{ filter:drop-shadow(0 0 6px var(--cyan)); }
+
+  .readout{ margin-top:-16px; text-align:center; }
+  .readout-row{ display:flex; align-items:flex-end; justify-content:center; gap:4px; }
+  .bmi-value{ font-family:'JetBrains Mono', monospace; font-size:48px; font-weight:500; letter-spacing:-0.02em; background:linear-gradient(90deg,#67e8f9,#a78bfa); -webkit-background-clip:text; background-clip:text; color:transparent; transition: opacity 0.3s ease; }
+  .bmi-unit{ font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--ink-dim); margin-bottom:6px; }
+
+  .pill{ display:inline-flex; align-items:center; gap:6px; margin-top:8px; padding:5px 12px; border-radius:9999px; font-size:12px; font-weight:500; border:1px solid var(--pill-border); background:var(--pill-bg); transition: border-color 0.3s ease, background 0.3s ease; }
+  .pill-dot{ width:6px; height:6px; border-radius:9999px; background:var(--ink-faint); animation:pulse-dot 2s ease-in-out infinite; }
+  @keyframes pulse-dot{ 0%,100%{ opacity:1; } 50%{ opacity:0.3; } }
+
+  .result-note{ text-align:center; font-size:12px; color:var(--ink-dim); line-height:1.6; margin:12px 8px 20px; min-height:40px; }
+
+  .stack{ display:flex; flex-direction:column; gap:16px; }
+  .label{ font-family:'JetBrains Mono', monospace; font-size:10px; letter-spacing:0.2em; color:var(--ink-dim); display:block; margin-bottom:6px; }
+  .label-row{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+
+  .field{ background:var(--field); border:1px solid var(--field-border); border-radius:16px; display:flex; align-items:center; padding:12px 16px; }
+  .field input{ background:transparent; border:none; outline:none; width:100%; font-family:'Space Grotesk', sans-serif; font-size:18px; color:var(--ink); }
+  .field input::placeholder{ color:var(--ink-faint); }
+  .field-suffix{ font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--ink-dim); margin-left:8px; white-space:nowrap; }
+
+  .seg-group{ display:flex; gap:4px; font-family:'JetBrains Mono', monospace; font-size:10px; }
+  .seg-btn{ padding:5px 10px; border-radius:9999px; border:1px solid var(--field-border); color:var(--ink-dim); background:transparent; cursor:pointer; transition:all 0.2s ease; font-family:'JetBrains Mono', monospace; }
+  .seg-btn.active{ background:rgba(53,224,200,0.15); color:var(--cyan); border-color:rgba(53,224,200,0.5); }
+
+  .ft-row{ display:none; gap:12px; }
+  .ft-row.visible{ display:flex; }
+  .ft-row .field{ flex:1; }
+
+  .calc-btn{ width:100%; border:none; border-radius:16px; padding:14px; font-family:'Space Grotesk', sans-serif; font-weight:600; font-size:14px; letter-spacing:0.02em; color:#04140f; cursor:pointer; margin-top:4px; background:linear-gradient(135deg,var(--cyan),var(--violet)); box-shadow:0 8px 30px -8px rgba(53,224,200,0.55); transition:transform 0.15s ease; }
+  .calc-btn:active{ transform:scale(0.98); }
+
+  .error-msg{ display:none; text-align:center; font-size:12px; color:#fb7185; font-family:'JetBrains Mono', monospace; margin:0; }
+  .error-msg.visible{ display:block; }
+
+  /* Ideal weight block */
+  .ideal-box{ display:none; border-radius:18px; border:1px solid var(--field-border); background:var(--field); padding:16px; margin-top:2px; }
+  .ideal-box.visible{ display:block; }
+  .ideal-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  .ideal-title{ font-family:'JetBrains Mono', monospace; font-size:10px; letter-spacing:0.2em; color:var(--ink-dim); }
+  .ideal-range{ font-family:'Space Grotesk', sans-serif; font-size:22px; font-weight:600; color:var(--ink); }
+  .ideal-sub{ font-size:11px; color:var(--ink-dim); margin-top:4px; }
+  .ideal-bar{ position:relative; height:6px; border-radius:9999px; margin-top:14px; background:linear-gradient(90deg, #4FB6E8, #35E0C8 30%, #35E0C8 60%, #F5B942 80%, #F2607A); opacity:0.9; }
+  .ideal-marker{ position:absolute; top:-4px; width:14px; height:14px; border-radius:9999px; background:#fff; border:2px solid var(--bg1); transform:translateX(-50%); transition:left 1.1s cubic-bezier(.34,1.56,.64,1); box-shadow:0 0 0 3px rgba(255,255,255,0.15); }
+
+  /* Recommendations */
+  .reco-box{ display:none; border-radius:18px; border:1px solid var(--field-border); background:var(--field); padding:16px; margin-top:2px; }
+  .reco-box.visible{ display:block; }
+  .reco-head{ display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+  .reco-dot{ width:8px; height:8px; border-radius:9999px; }
+  .reco-title{ font-family:'JetBrains Mono', monospace; font-size:10px; letter-spacing:0.2em; color:var(--ink-dim); }
+  .reco-list{ margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:8px; }
+  .reco-list li{ font-size:12.5px; color:var(--ink); line-height:1.5; padding-left:16px; position:relative; }
+  .reco-list li::before{ content:"→"; position:absolute; left:0; color:var(--cyan); font-family:'JetBrains Mono', monospace; }
+
+  /* History */
+  .history-wrap{ width:100%; max-width:384px; margin-top:16px; }
+  .history-toggle{ width:100%; display:flex; align-items:center; justify-content:space-between; background:var(--card); border:1px solid var(--card-border); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); border-radius:18px; padding:14px 18px; cursor:pointer; color:var(--ink); }
+  .history-toggle-left{ display:flex; align-items:center; gap:10px; }
+  .history-title{ font-family:'JetBrains Mono', monospace; font-size:11px; letter-spacing:0.15em; color:var(--ink-dim); }
+  .history-count{ font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--cyan); background:rgba(53,224,200,0.15); border-radius:9999px; padding:2px 8px; }
+  .chevron{ width:10px; height:10px; border-right:2px solid var(--ink-dim); border-bottom:2px solid var(--ink-dim); transform:rotate(45deg); transition:transform 0.3s ease; margin-right:2px; }
+  .chevron.open{ transform:rotate(-135deg); }
+
+  .history-panel{ max-height:0; overflow:hidden; transition:max-height 0.4s ease; }
+  .history-panel.open{ max-height:400px; }
+  .history-inner{ background:var(--card); border:1px solid var(--card-border); border-top:none; border-radius:0 0 18px 18px; padding:6px 18px 14px; backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); }
+  .history-empty{ font-size:12px; color:var(--ink-dim); text-align:center; padding:16px 0; }
+  .history-item{ display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--divider); }
+  .history-item:last-child{ border-bottom:none; }
+  .history-left{ display:flex; align-items:center; gap:10px; }
+  .history-dot{ width:8px; height:8px; border-radius:9999px; flex-shrink:0; }
+  .history-meta{ display:flex; flex-direction:column; }
+  .history-cat{ font-size:12.5px; font-weight:500; color:var(--ink); }
+  .history-time{ font-family:'JetBrains Mono', monospace; font-size:10px; color:var(--ink-faint); }
+  .history-value{ font-family:'JetBrains Mono', monospace; font-size:15px; color:var(--ink); }
+  .history-footer{ display:flex; justify-content:space-between; align-items:center; padding-top:8px; }
+  .history-storage-note{ font-family:'JetBrains Mono', monospace; font-size:9px; color:var(--ink-faint); }
+  .clear-btn{ background:none; border:none; color:#fb7185; font-family:'JetBrains Mono', monospace; font-size:10px; cursor:pointer; padding:0; }
+
+  .hidden{ display:none !important; }
+  .footer-note{ font-family:'JetBrains Mono', monospace; font-size:10px; color:var(--ink-faint); margin-top:24px; letter-spacing:0.05em; }
+
+  input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+  input[type=number]{ -moz-appearance:textfield; }
+  ::selection{ background:var(--cyan); color:#04140f; }
+</style>
+</head>
+<body>
+
+<div class="blob blob1"></div>
+<div class="blob blob2"></div>
+
+<div class="page">
+
+  <div class="topbar">
+    <div>
+      <p class="eyebrow font-mono">VITALS · READOUT</p>
+      <h1 class="brand font-display">BMI</h1>
+    </div>
+    <button id="theme-toggle" class="theme-toggle" aria-label="Toggle dark or light mode">
+      <span class="theme-thumb" id="toggle-thumb">🌙</span>
+    </button>
+  </div>
+
+  <main class="card">
+
+    <div class="gauge-wrap">
+      <svg viewBox="0 0 200 130" class="gauge-svg">
+        <g id="segments" stroke-width="14" fill="none" stroke-linecap="round"></g>
+        <g id="ticks" class="font-mono" font-size="7" fill="currentColor" opacity="0.45"></g>
+        <g id="needle">
+          <line x1="100" y1="100" x2="100" y2="34" stroke="url(#needleGrad)" stroke-width="3.5" stroke-linecap="round"/>
+          <circle id="indicator-dot" cx="100" cy="34" r="5" fill="#ffffff"/>
+          <circle cx="100" cy="100" r="6" fill="url(#needleGrad)"/>
+        </g>
+        <circle cx="100" cy="100" r="2.5" fill="#070B14"/>
+        <defs>
+          <linearGradient id="needleGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#35E0C8"/>
+            <stop offset="100%" stop-color="#7C6CF0"/>
+          </linearGradient>
+        </defs>
+      </svg>
+
+      <div class="readout">
+        <div class="readout-row">
+          <span id="bmi-value" class="bmi-value">--.-</span>
+          <span class="bmi-unit">kg/m²</span>
+        </div>
+        <span id="category-pill" class="pill">
+          <span class="pill-dot" id="category-dot"></span>
+          <span id="category-text">Awaiting input</span>
+        </span>
+      </div>
+    </div>
+
+    <p id="result-note" class="result-note">
+      Enter your weight and height, then run the calculation to see your reading.
+    </p>
+
+    <div class="stack">
+
+      <div>
+        <label class="label">WEIGHT</label>
+        <div class="field">
+          <input id="weight" type="number" inputmode="decimal" min="1" max="400" step="0.1" placeholder="70" />
+          <span class="field-suffix">kg</span>
+        </div>
+      </div>
+
+      <div>
+        <div class="label-row">
+          <label class="label" style="margin-bottom:0;">HEIGHT</label>
+          <div class="seg-group">
+            <button data-unit="cm" class="seg-btn active">CM</button>
+            <button data-unit="ft" class="seg-btn">FT/IN</button>
+          </div>
+        </div>
+
+        <div id="height-cm" class="field">
+          <input id="height-cm-input" type="number" inputmode="decimal" min="50" max="260" step="0.1" placeholder="175" />
+          <span class="field-suffix">cm</span>
+        </div>
+
+        <div id="height-ft" class="ft-row">
+          <div class="field">
+            <input id="height-ft-input" type="number" inputmode="numeric" min="1" max="8" step="1" placeholder="5" />
+            <span class="field-suffix">ft</span>
+          </div>
+          <div class="field">
+            <input id="height-in-input" type="number" inputmode="decimal" min="0" max="11.9" step="0.1" placeholder="9" />
+            <span class="field-suffix">in</span>
+          </div>
+        </div>
+      </div>
+
+      <button id="calc-btn" class="calc-btn">Calculate BMI</button>
+
+      <p id="error-msg" class="error-msg">Enter valid weight and height to continue.</p>
+
+      <!-- Ideal weight -->
+      <div id="ideal-box" class="ideal-box">
+        <div class="ideal-head">
+          <span class="ideal-title">IDEAL WEIGHT RANGE</span>
+        </div>
+        <div class="ideal-range" id="ideal-range">--</div>
+        <div class="ideal-sub" id="ideal-sub">Based on the height you entered.</div>
+        <div class="ideal-bar">
+          <div class="ideal-marker" id="ideal-marker" style="left:0%;"></div>
+        </div>
+      </div>
+
+      <!-- Recommendations -->
+      <div id="reco-box" class="reco-box">
+        <div class="reco-head">
+          <span class="reco-dot" id="reco-dot"></span>
+          <span class="reco-title" id="reco-title">RECOMMENDATIONS</span>
+        </div>
+        <ul class="reco-list" id="reco-list"></ul>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- History -->
+  <div class="history-wrap">
+    <button id="history-toggle" class="history-toggle">
+      <span class="history-toggle-left">
+        <span class="history-title">RECENT READINGS</span>
+        <span class="history-count" id="history-count">0</span>
+      </span>
+      <span class="chevron" id="chevron"></span>
+    </button>
+    <div class="history-panel" id="history-panel">
+      <div class="history-inner">
+        <div id="history-list"></div>
+        <div class="history-footer">
+          <span class="history-storage-note" id="storage-note">SAVED ON THIS DEVICE</span>
+          <button class="clear-btn" id="clear-history">CLEAR</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="footer-note">NOT A SUBSTITUTE FOR MEDICAL ADVICE</p>
+</div>
+
+<script>
+(function(){
+  const root = document.documentElement;
+  const themeToggle = document.getElementById('theme-toggle');
+  const themeThumb = document.getElementById('toggle-thumb');
+
+  function setTheme(isLight){
+    root.classList.toggle('light', isLight);
+    themeThumb.style.transform = isLight ? 'translateX(28px)' : 'translateX(0)';
+    themeThumb.textContent = isLight ? '☀️' : '🌙';
+  }
+  let isLight = false;
+  setTheme(isLight);
+  themeToggle.addEventListener('click', () => {
+    isLight = !isLight;
+    setTheme(isLight);
+  });
+
+  // ---- Height unit toggle ----
+  const segBtns = document.querySelectorAll('.seg-btn');
+  const heightCm = document.getElementById('height-cm');
+  const heightFt = document.getElementById('height-ft');
+  let unit = 'cm';
+
+  segBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      segBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      unit = btn.dataset.unit;
+      if(unit === 'cm'){
+        heightCm.classList.remove('hidden');
+        heightFt.classList.remove('visible');
+      } else {
+        heightCm.classList.add('hidden');
+        heightFt.classList.add('visible');
+      }
+    });
+  });
+
+  // ---- Gauge setup ----
+  const GAUGE_MIN = 15, GAUGE_MAX = 40;
+  const segmentsG = document.getElementById('segments');
+  const ticksG = document.getElementById('ticks');
+  const needle = document.getElementById('needle');
+
+  const categories = [
+    { label: 'Underweight', from: GAUGE_MIN, to: 18.5, color: '#4FB6E8' },
+    { label: 'Normal',      from: 18.5,      to: 25,   color: '#35E0C8' },
+    { label: 'Overweight',  from: 25,        to: 30,   color: '#F5B942' },
+    { label: 'Obese',       from: 30,        to: GAUGE_MAX, color: '#F2607A' },
+  ];
+
+  const recommendations = {
+    'Underweight': [
+      'Add nutrient-dense foods like nuts, dairy, and whole grains to raise calorie intake.',
+      'Include strength training 2–3 times a week to build muscle mass.',
+      'Eat 5–6 smaller meals instead of 3 large ones to make it easier to reach your target.',
+      'Talk to a doctor or dietitian if healthy weight gain has been a persistent challenge.'
+    ],
+    'Normal': [
+      'Keep your current balance of diet and activity — it appears to be working well.',
+      'Aim for at least 150 minutes of moderate exercise each week.',
+      'Watch portion sizes as routines change over time.',
+      'Schedule regular checkups to track your baseline health markers.'
+    ],
+    'Overweight': [
+      'Focus on portion control and cutting back on processed sugars.',
+      'Add 30 minutes of brisk walking or cardio on most days.',
+      'Prioritize protein and fiber at meals to stay fuller for longer.',
+      'Track progress weekly rather than daily to stay motivated.'
+    ],
+    'Obese': [
+      'Consult a healthcare provider to build a personalized, safe plan.',
+      'Start with low-impact activity like walking or swimming.',
+      'Focus on small, sustainable changes rather than quick fixes.',
+      'Consider a food journal to build awareness of eating patterns.'
+    ]
+  };
+
+  function bmiToGaugeAngle(bmi){
+    const clamped = Math.max(GAUGE_MIN, Math.min(GAUGE_MAX, bmi));
+    return -90 + ((clamped - GAUGE_MIN) / (GAUGE_MAX - GAUGE_MIN)) * 180;
+  }
+
+  function polarToCartesian(cx, cy, r, angleDeg){
+    const rad = (angleDeg - 90) * Math.PI / 180;
+    return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+  }
+
+  function describeArc(cx, cy, r, startAngle, endAngle){
+    const start = polarToCartesian(cx, cy, r, endAngle);
+    const end = polarToCartesian(cx, cy, r, startAngle);
+    const largeArcFlag = endAngle - startAngle <= 180 ? "0" : "1";
+    return `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArcFlag} 0 ${end.x} ${end.y}`;
+  }
+
+  const R = 66, CX = 100, CY = 100;
+  categories.forEach(cat => {
+    const a1 = bmiToGaugeAngle(cat.from);
+    const a2 = bmiToGaugeAngle(cat.to);
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', describeArc(CX, CY, R, a1, a2));
+    path.setAttribute('stroke', cat.color);
+    path.setAttribute('opacity', '0.85');
+    segmentsG.appendChild(path);
+  });
+
+  [15, 18.5, 25, 30, 40].forEach(v => {
+    const a = bmiToGaugeAngle(v);
+    const p = polarToCartesian(CX, CY, R + 16, a);
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('x', p.x);
+    text.setAttribute('y', p.y + 2);
+    text.setAttribute('text-anchor', 'middle');
+    text.textContent = v;
+    ticksG.appendChild(text);
+  });
+
+  function setNeedle(bmi){
+    const angle = bmiToGaugeAngle(bmi);
+    needle.style.transform = `rotate(${angle}deg)`;
+  }
+  setNeedle(GAUGE_MIN);
+
+  // ---- Resilient storage (localStorage with in-memory fallback) ----
+  const STORAGE_KEY = 'bmiHistoryEntries';
+  const memoryStore = { entries: [] };
+  const storageSupported = (function(){
+    try{
+      const t = '__bmi_test__';
+      localStorage.setItem(t, t);
+      localStorage.removeItem(t);
+      return true;
+    }catch(e){ return false; }
+  })();
+
+  function loadHistory(){
+    if(storageSupported){
+      try{ return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
+      catch(e){ return []; }
+    }
+    return memoryStore.entries;
+  }
+
+  function saveHistory(arr){
+    if(storageSupported){
+      try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); return; }
+      catch(e){ /* fall through to memory */ }
+    }
+    memoryStore.entries = arr;
+  }
+
+  document.getElementById('storage-note').textContent = storageSupported
+    ? 'SAVED ON THIS DEVICE'
+    : 'SAVED FOR THIS SESSION';
+
+  const historyToggle = document.getElementById('history-toggle');
+  const historyPanel = document.getElementById('history-panel');
+  const chevron = document.getElementById('chevron');
+  const historyList = document.getElementById('history-list');
+  const historyCount = document.getElementById('history-count');
+  const clearHistoryBtn = document.getElementById('clear-history');
+
+  historyToggle.addEventListener('click', () => {
+    historyPanel.classList.toggle('open');
+    chevron.classList.toggle('open');
+  });
+
+  clearHistoryBtn.addEventListener('click', () => {
+    saveHistory([]);
+    renderHistory();
+  });
+
+  function timeAgoLabel(iso){
+    const d = new Date(iso);
+    return d.toLocaleDateString(undefined, { month:'short', day:'numeric' }) + ' · ' +
+           d.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' });
+  }
+
+  function renderHistory(){
+    const entries = loadHistory();
+    historyCount.textContent = entries.length;
+    historyList.innerHTML = '';
+
+    if(entries.length === 0){
+      historyList.innerHTML = '<div class="history-empty">No readings saved yet. Calculate your BMI to start tracking.</div>';
+      return;
+    }
+
+    entries.forEach(e => {
+      const row = document.createElement('div');
+      row.className = 'history-item';
+      row.innerHTML = `
+        <div class="history-left">
+          <span class="history-dot" style="background:${e.color}"></span>
+          <div class="history-meta">
+            <span class="history-cat">${e.category}</span>
+            <span class="history-time">${timeAgoLabel(e.timestamp)}</span>
+          </div>
+        </div>
+        <span class="history-value">${e.bmi}</span>
+      `;
+      historyList.appendChild(row);
+    });
+  }
+
+  function addHistoryEntry(entry){
+    const entries = loadHistory();
+    entries.unshift(entry);
+    saveHistory(entries.slice(0, 3));
+    renderHistory();
+  }
+
+  renderHistory();
+
+  // ---- Calculation ----
+  const weightInput = document.getElementById('weight');
+  const heightCmInput = document.getElementById('height-cm-input');
+  const heightFtInput = document.getElementById('height-ft-input');
+  const heightInInput = document.getElementById('height-in-input');
+  const calcBtn = document.getElementById('calc-btn');
+  const errorMsg = document.getElementById('error-msg');
+
+  const bmiValueEl = document.getElementById('bmi-value');
+  const categoryText = document.getElementById('category-text');
+  const categoryDot = document.getElementById('category-dot');
+  const categoryPill = document.getElementById('category-pill');
+  const resultNote = document.getElementById('result-note');
+
+  const idealBox = document.getElementById('ideal-box');
+  const idealRange = document.getElementById('ideal-range');
+  const idealSub = document.getElementById('ideal-sub');
+  const idealMarker = document.getElementById('ideal-marker');
+
+  const recoBox = document.getElementById('reco-box');
+  const recoDot = document.getElementById('reco-dot');
+  const recoTitle = document.getElementById('reco-title');
+  const recoList = document.getElementById('reco-list');
+
+  const notes = {
+    'Underweight': 'Your reading sits below the typical range. Consider speaking with a healthcare provider about healthy weight gain.',
+    'Normal': 'Your reading falls within the range associated with lower health risk for most adults.',
+    'Overweight': 'Your reading sits above the typical range. Small, sustainable lifestyle changes can help.',
+    'Obese': 'Your reading is well above the typical range. A healthcare provider can help you build a plan.',
+  };
+
+  function getHeightInMeters(){
+    if(unit === 'cm'){
+      const cm = parseFloat(heightCmInput.value);
+      if(!cm || cm <= 0) return null;
+      return cm / 100;
+    } else {
+      const ft = parseFloat(heightFtInput.value) || 0;
+      const inch = parseFloat(heightInInput.value) || 0;
+      const totalIn = ft * 12 + inch;
+      if(totalIn <= 0) return null;
+      return totalIn * 0.0254;
+    }
+  }
+
+  function classify(bmi){
+    for(const cat of categories){
+      if(bmi < cat.to || cat === categories[categories.length - 1]){
+        return cat;
+      }
+    }
+    return categories[categories.length - 1];
+  }
+
+  function calculate(){
+    const weight = parseFloat(weightInput.value);
+    const heightM = getHeightInMeters();
+
+    if(!weight || weight <= 0 || weight > 400 || !heightM || heightM < 0.5 || heightM > 2.6){
+      errorMsg.classList.add('visible');
+      return;
+    }
+    errorMsg.classList.remove('visible');
+
+    const bmi = weight / (heightM * heightM);
+    const cat = classify(bmi > GAUGE_MAX ? GAUGE_MAX + 0.01 : bmi < GAUGE_MIN ? GAUGE_MIN : bmi);
+    const bmiRounded = bmi.toFixed(1);
+
+    // Result readout
+    bmiValueEl.textContent = bmiRounded;
+    categoryText.textContent = cat.label;
+    categoryDot.style.backgroundColor = cat.color;
+    categoryPill.style.borderColor = cat.color + '55';
+    categoryPill.style.background = cat.color + '1A';
+    categoryText.style.color = cat.color;
+    resultNote.textContent = notes[cat.label];
+
+    // Gauge + indicator dot (animate together)
+    setNeedle(bmi);
+
+    // Ideal weight range
+    const minKg = 18.5 * heightM * heightM;
+    const maxKg = 24.9 * heightM * heightM;
+    idealRange.textContent = `${minKg.toFixed(1)}–${maxKg.toFixed(1)} kg`;
+    idealSub.textContent = weight >= minKg && weight <= maxKg
+      ? 'You are within your ideal weight range for this height.'
+      : weight < minKg
+        ? `About ${(minKg - weight).toFixed(1)} kg below your ideal range.`
+        : `About ${(weight - maxKg).toFixed(1)} kg above your ideal range.`;
+
+    const markerBmi = Math.max(GAUGE_MIN, Math.min(GAUGE_MAX, bmi));
+    const markerPct = ((markerBmi - GAUGE_MIN) / (GAUGE_MAX - GAUGE_MIN)) * 100;
+    idealMarker.style.left = markerPct + '%';
+    idealBox.classList.add('visible');
+
+    // Recommendations
+    recoDot.style.backgroundColor = cat.color;
+    recoTitle.textContent = `${cat.label.toUpperCase()} · RECOMMENDATIONS`;
+    recoList.innerHTML = '';
+    recommendations[cat.label].forEach(tip => {
+      const li = document.createElement('li');
+      li.textContent = tip;
+      recoList.appendChild(li);
+    });
+    recoBox.classList.add('visible');
+
+    // History
+    addHistoryEntry({
+      bmi: bmiRounded,
+      category: cat.label,
+      color: cat.color,
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  calcBtn.addEventListener('click', calculate);
+  [weightInput, heightCmInput, heightFtInput, heightInInput].forEach(el => {
+    el.addEventListener('keydown', e => { if(e.key === 'Enter') calculate(); });
+  });
+})();
+</script>
+</body>
+</html>
